@@ -4,19 +4,20 @@ const crypto = require('crypto');
 const os = require('os');
 const dns = require('dns'); 
 
+// Forzar globalmente que Node prefiera IPv4 en resoluciones básicas
+dns.setDefaultResultOrder('ipv4first');
+
 const app = express();
 app.use(express.json());
 
 // Conexión a la base de datos PostgreSQL usando la variable de entorno de producción
-const connectionString = process.env.DATABASE_URL || "TU_URL_DE_CONEXION_DE_NEON_O_SUPABASE_ACA";
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:[ChoquesA0226]@db.rsaoknncxwqcmnbnjrrf.supabase.co:5432/postgres";
 
-// PARCHE DEFINITIVO PARA DRIVER PG: Forzar el lookup de DNS estrictamente a IPv4 (Family 4)
+// 🛠️ CONFIGURACIÓN BLINDADA: 'family: 4' fuerza al driver a conectar exclusivamente por IPv4
 const pool = new Pool({
     connectionString: connectionString,
     ssl: { rejectUnauthorized: false },
-    lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
-    }
+    family: 4 
 });
 
 // Inicializar las tablas estructurales en PostgreSQL
