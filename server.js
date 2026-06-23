@@ -1,23 +1,17 @@
 const express = require('express');
 const { Pool } = require('pg');
 const crypto = require('crypto');
-const os = require('os');
-const dns = require('dns'); 
-
-// Forzar globalmente que Node prefiera IPv4 en resoluciones básicas
-dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 app.use(express.json());
 
-// Conexión a la base de datos PostgreSQL usando la variable de entorno de producción
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:[ChoquesA0226]@db.rsaoknncxwqcmnbnjrrf.supabase.co:5432/postgres";
+// Conclusión a la base de datos PostgreSQL usando la variable de entorno de producción
+// ⚠️ ACÁ PEGÁ LA URL DEL POOLER QUE COPIASTE DE SUPABASE (Cambiando [YOUR-PASSWORD] por tu clave)
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.rsaoknncxwqcmnbnjrrf:[ChoquesA0226]@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
 
-// 🛠️ CONFIGURACIÓN BLINDADA: 'family: 4' fuerza al driver a conectar exclusivamente por IPv4
 const pool = new Pool({
     connectionString: connectionString,
-    ssl: { rejectUnauthorized: false },
-    family: 4 
+    ssl: { rejectUnauthorized: false }
 });
 
 // Inicializar las tablas estructurales en PostgreSQL
