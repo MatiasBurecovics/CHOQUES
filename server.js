@@ -6,7 +6,6 @@ const app = express();
 app.use(express.json());
 
 // Conclusión a la base de datos PostgreSQL usando la variable de entorno de producción
-// ⚠️ ACÁ PEGÁ LA URL DEL POOLER QUE COPIASTE DE SUPABASE (Cambiando [YOUR-PASSWORD] por tu clave)
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres.rsaoknncxwqcmnbnjrrf:ChoquesA0226@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
 
 const pool = new Pool({
@@ -17,6 +16,7 @@ const pool = new Pool({
 // Inicializar las tablas estructurales en PostgreSQL
 const initDB = async () => {
     try {
+        // 1. Tabla de usuarios principal
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
                 id VARCHAR(255) PRIMARY KEY,
@@ -39,6 +39,7 @@ const initDB = async () => {
             );
         `);
 
+        // 2. Tabla de pines activos temporales
         await pool.query(`
             CREATE TABLE IF NOT EXISTS pines_activos (
                 pin VARCHAR(10) PRIMARY KEY,
@@ -49,16 +50,45 @@ const initDB = async () => {
             );
         `);
 
+        // 3. Tabla de historial (Almacena los snapshots congelados de ambos lados)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS historial_intercambios (
                 id VARCHAR(255) PRIMARY KEY,
                 usuario_emisor_id VARCHAR(255) NOT NULL,
                 usuario_receptor_id VARCHAR(255) NOT NULL,
                 fecha_intercambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Datos congelados del EMISOR (El que generó el PIN)
+                emisor_nombre VARCHAR(255),
+                emisor_telefono VARCHAR(255),
+                emisor_patente VARCHAR(255),
+                emisor_aseguradora VARCHAR(255),
+                emisor_poliza VARCHAR(255),
+                
+                -- Datos congelados del RECEPTOR (El que ingresó el PIN)
+                receptor_nombre VARCHAR(255),
+                receptor_telefono VARCHAR(255),
+                receptor_patente VARCHAR(255),
+                receptor_aseguradora VARCHAR(255),
+                receptor_poliza VARCHAR(255),
+
                 FOREIGN KEY (usuario_emisor_id) REFERENCES usuarios(id),
                 FOREIGN KEY (usuario_receptor_id) REFERENCES usuarios(id)
             );
         `);
+
+        // MIGRACIÓN AUTOMÁTICA
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS emisor_nombre VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS emisor_telefono VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS emisor_patente VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS emisor_aseguradora VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS emisor_poliza VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS receptor_nombre VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS receptor_telefono VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS receptor_patente VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS receptor_aseguradora VARCHAR(255);`);
+        await pool.query(`ALTER TABLE historial_intercambios ADD COLUMN IF NOT EXISTS receptor_poliza VARCHAR(255);`);
+
         console.log("Tablas verificadas/creadas con éxito en la nube de PostgreSQL.");
     } catch (err) {
         console.error("Error al inicializar la base de datos:", err.message);
@@ -66,7 +96,6 @@ const initDB = async () => {
 };
 initDB();
 
-// ENDPOINT DE PING: Vital para UptimeRobot
 app.get('/ping', (req, res) => {
     res.status(200).send('pong');
 });
@@ -173,7 +202,7 @@ app.post('/api/choque/activar', async (req, res) => {
 });
 
 // ==========================================
-// 5. INTERCAMBIAR DATOS POR PIN
+// 5. INTERCAMBIAR DATOS POR PIN (CON SNAPSHOT)
 // ==========================================
 app.post('/api/choque/intercambiar', async (req, res) => {
     const { usuarioId, pinIngresado } = req.body;
@@ -192,8 +221,26 @@ app.post('/api/choque/intercambiar', async (req, res) => {
         const emisorResult = await pool.query(`SELECT * FROM usuarios WHERE id = $1`, [usuarioEmisorId]);
         const datosEmisor = emisorResult.rows[0];
 
+        const receptorResult = await pool.query(`SELECT * FROM usuarios WHERE id = $1`, [usuarioId]);
+        const datosReceptor = receptorResult.rows[0];
+
         const intercambioId = 'int_' + crypto.randomBytes(4).toString('hex');
-        await pool.query(`INSERT INTO historial_intercambios (id, usuario_emisor_id, usuario_receptor_id) VALUES ($1, $2, $3)`, [intercambioId, usuarioEmisorId, usuarioId]);
+        
+        const sqlInsertHistorial = `
+            INSERT INTO historial_intercambios (
+                id, usuario_emisor_id, usuario_receptor_id,
+                emisor_nombre, emisor_telefono, emisor_patente, emisor_aseguradora, emisor_poliza,
+                receptor_nombre, receptor_telefono, receptor_patente, receptor_aseguradora, receptor_poliza
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        
+        const paramsHistorial = [
+            intercambioId, usuarioEmisorId, usuarioId,
+            datosEmisor.conductor_nombre, datosEmisor.conductor_telefono, datosEmisor.vehiculo_patente, datosEmisor.seguro_aseguradora, datosEmisor.seguro_poliza,
+            datosReceptor.conductor_nombre, datosReceptor.conductor_telefono, datosReceptor.vehiculo_patente, datosReceptor.seguro_aseguradora, datosReceptor.seguro_poliza
+        ];
+
+        await pool.query(sqlInsertHistorial, paramsHistorial);
         await pool.query(`DELETE FROM pines_activos WHERE pin = $1`, [pinIngresado]);
 
         res.status(200).json({
@@ -210,19 +257,25 @@ app.post('/api/choque/intercambiar', async (req, res) => {
 });
 
 // ==========================================
-// 6. VER HISTORIAL DE UN USUARIO
+// 6. VER HISTORIAL LEyendo DESDE EL SNAPSHOT
 // ==========================================
 app.get('/api/choque/historial/:usuarioId', async (req, res) => {
     const { usuarioId } = req.params;
+    
     const sql = `
         SELECT 
-            h.fecha_intercambio,
-            u.conductor_nombre, u.conductor_telefono, u.vehiculo_patente, u.seguro_aseguradora, u.seguro_poliza
-        FROM historial_intercambios h
-        JOIN usuarios u ON (u.id = h.usuario_emisor_id OR u.id = h.usuario_receptor_id)
-        WHERE (h.usuario_emisor_id = $1 OR h.usuario_receptor_id = $1) AND u.id != $1
-        ORDER BY h.fecha_intercambio DESC
+            id,
+            fecha_intercambio,
+            CASE WHEN usuario_emisor_id = $1 THEN receptor_nombre ELSE emisor_nombre END AS conductor_nombre,
+            CASE WHEN usuario_emisor_id = $1 THEN receptor_telefono ELSE emisor_telefono END AS conductor_telefono,
+            CASE WHEN usuario_emisor_id = $1 THEN receptor_patente ELSE emisor_patente END AS vehiculo_patente,
+            CASE WHEN usuario_emisor_id = $1 THEN receptor_aseguradora ELSE emisor_aseguradora END AS seguro_aseguradora,
+            CASE WHEN usuario_emisor_id = $1 THEN receptor_poliza ELSE emisor_poliza END AS seguro_poliza
+        FROM historial_intercambios 
+        WHERE usuario_emisor_id = $1 OR usuario_receptor_id = $1
+        ORDER BY fecha_intercambio DESC
     `;
+    
     try {
         const result = await pool.query(sql, [usuarioId]);
         res.status(200).json({ historial: result.rows });
@@ -233,5 +286,5 @@ app.get('/api/choque/historial/:usuarioId', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor de producción listo en el puerto ${PORT}`);
+    console.log("Servidor de producción listo");
 });
