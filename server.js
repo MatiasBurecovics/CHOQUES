@@ -2,20 +2,21 @@ const express = require('express');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const os = require('os');
-const dns = require('dns'); // Módulo nativo de Node.js para manejo de red
-
-// 🛠️ FIX CRÍTICO: Obligar a Node.js a preferir IPv4 sobre IPv6 para evitar el error ENETUNREACH
-dns.setDefaultResultOrder('ipv4first');
+const dns = require('dns'); 
 
 const app = express();
 app.use(express.json());
 
 // Conexión a la base de datos PostgreSQL usando la variable de entorno de producción
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:[ChoquesA0226]@db.rsaoknncxwqcmnbnjrrf.supabase.co:5432/postgres";
+const connectionString = process.env.DATABASE_URL || "TU_URL_DE_CONEXION_DE_NEON_O_SUPABASE_ACA";
 
+// PARCHE DEFINITIVO PARA DRIVER PG: Forzar el lookup de DNS estrictamente a IPv4 (Family 4)
 const pool = new Pool({
     connectionString: connectionString,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+    }
 });
 
 // Inicializar las tablas estructurales en PostgreSQL
@@ -203,7 +204,7 @@ app.post('/api/choque/intercambiar', async (req, res) => {
         res.status(200).json({
             mensaje: "Intercambio realizado con éxito.",
             datosRecibidos: {
-                conductor: { nombre: datosEmisor.conductor_nombre, dni: datosEmisor.conductor_dni, domicilio: datosEmisor.conductor_domicilio, telephone: datosEmisor.conductor_telefono, licencia: datosEmisor.conductor_licencia },
+                conductor: { nombre: datosEmisor.conductor_nombre, dni: datosEmisor.conductor_dni, domicilio: datosEmisor.conductor_domicilio, telefono: datosEmisor.conductor_telefono, licencia: datosEmisor.conductor_licencia },
                 vehiculo: { patente: datosEmisor.vehiculo_patente, marca: datosEmisor.vehiculo_marca, modelo: datosEmisor.vehiculo_modelo, anio: datosEmisor.vehiculo_anio, motor: datosEmisor.vehiculo_motor, chasis: datosEmisor.vehiculo_chasis },
                 seguro: { aseguradora: datosEmisor.seguro_aseguradora, poliza: datosEmisor.seguro_poliza, vencimiento: datosEmisor.seguro_vencimiento }
             }
