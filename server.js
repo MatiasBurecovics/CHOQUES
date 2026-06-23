@@ -1,17 +1,21 @@
 const express = require('express');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const os = require('os');
+const dns = require('dns'); // Módulo nativo de Node.js para manejo de red
+
+// 🛠️ FIX CRÍTICO: Obligar a Node.js a preferir IPv4 sobre IPv6 para evitar el error ENETUNREACH
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 app.use(express.json());
 
 // Conexión a la base de datos PostgreSQL usando la variable de entorno de producción
-// En desarrollo local, si no existe, usará la URL que pegues acá abajo
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres:[ChoquesA0226]@db.rsaoknncxwqcmnbnjrrf.supabase.co:5432/postgres";
 
 const pool = new Pool({
     connectionString: connectionString,
-    ssl: { rejectUnauthorized: false } // Requerido para conexiones seguras en la nube
+    ssl: { rejectUnauthorized: false }
 });
 
 // Inicializar las tablas estructurales en PostgreSQL
@@ -66,7 +70,7 @@ const initDB = async () => {
 };
 initDB();
 
-// ENDPOINT DE PING: Vital para que UptimeRobot mantenga vivo el servidor
+// ENDPOINT DE PING: Vital para UptimeRobot
 app.get('/ping', (req, res) => {
     res.status(200).send('pong');
 });
@@ -95,7 +99,7 @@ app.post('/api/auth/register', async (req, res) => {
         await pool.query(sql, params);
         res.status(201).json({ mensaje: "Usuario registrado con éxito", usuarioId });
     } catch (err) {
-        if (err.code === '23505') { // Código de error de duplicados en Postgres
+        if (err.code === '23505') {
             if (err.detail.includes('email')) return res.status(400).json({ error: "El correo electrónico ya está registrado." });
             if (err.detail.includes('dni')) return res.status(400).json({ error: "El DNI ingresado ya está registrado." });
             if (err.detail.includes('patente')) return res.status(400).json({ error: "La patente ingresada ya está registrada." });
@@ -163,7 +167,6 @@ app.post('/api/choque/activar', async (req, res) => {
         await pool.query(`DELETE FROM pines_activos WHERE usuario_id = $1`, [usuarioId]);
         const pin = Math.floor(1000 + Math.random() * 9000).toString();
         
-        // En Postgres usamos INTERVAL
         const sql = `INSERT INTO pines_activos (pin, usuario_id, expiracion) VALUES ($1, $2, NOW() + INTERVAL '10 minutes')`;
         await pool.query(sql, [pin, usuarioId]);
 
@@ -200,7 +203,7 @@ app.post('/api/choque/intercambiar', async (req, res) => {
         res.status(200).json({
             mensaje: "Intercambio realizado con éxito.",
             datosRecibidos: {
-                conductor: { nombre: datosEmisor.conductor_nombre, dni: datosEmisor.conductor_dni, domicilio: datosEmisor.conductor_domicilio, telefono: datosEmisor.conductor_telefono, licencia: datosEmisor.conductor_licencia },
+                conductor: { nombre: datosEmisor.conductor_nombre, dni: datosEmisor.conductor_dni, domicilio: datosEmisor.conductor_domicilio, telephone: datosEmisor.conductor_telefono, licencia: datosEmisor.conductor_licencia },
                 vehiculo: { patente: datosEmisor.vehiculo_patente, marca: datosEmisor.vehiculo_marca, modelo: datosEmisor.vehiculo_modelo, anio: datosEmisor.vehiculo_anio, motor: datosEmisor.vehiculo_motor, chasis: datosEmisor.vehiculo_chasis },
                 seguro: { aseguradora: datosEmisor.seguro_aseguradora, poliza: datosEmisor.seguro_poliza, vencimiento: datosEmisor.seguro_vencimiento }
             }
