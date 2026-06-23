@@ -7,7 +7,7 @@ app.use(express.json());
 
 // Conclusión a la base de datos PostgreSQL usando la variable de entorno de producción
 // ⚠️ ACÁ PEGÁ LA URL DEL POOLER QUE COPIASTE DE SUPABASE (Cambiando [YOUR-PASSWORD] por tu clave)
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres.rsaoknncxwqcmnbnjrrf:[ChoquesA0226]@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.rsaoknncxwqcmnbnjrrf:ChoquesA0226@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
 
 const pool = new Pool({
     connectionString: connectionString,
