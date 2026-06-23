@@ -1,0 +1,83 @@
+### ========================================================
+### 1. CREAR EL PERFIL DE JUAN (EL QUE VA A SER CHOCADO)
+### ========================================================
+POST http://localhost:3000/api/perfil
+Content-Type: application/json
+
+{
+  "nombre": "Juan Pérez",
+  "dni": "35123456",
+  "domicilio": "Av. Corrientes 1234, CABA",
+  "telefono": "+54 11 9999-8888",
+  "licencia": "LIC-ABC-123",
+  "patente": "AA123BB",
+  "marca": "Volkswagen",
+  "modelo": "Gol Trend",
+  "anio": 2018,
+  "motor": "MOT-9999",
+  "chasis": "CHA-8888",
+  "aseguradora": "La Caja Seguros",
+  "poliza": "POL-999-888",
+  "vencimiento": "2027-12-31"
+}
+
+###
+
+### ========================================================
+### 2. CREAR EL PERFIL DE MARÍA (LA QUE CHOCA)
+### ========================================================
+POST http://localhost:3000/api/perfil
+Content-Type: application/json
+
+{
+  "nombre": "María Rodríguez",
+  "dni": "38987654",
+  "domicilio": "Calle Florida 555, CABA",
+  "telefono": "+54 11 7777-6666",
+  "licencia": "LIC-XYZ-987",
+  "patente": "AF987XX",
+  "marca": "Toyota",
+  "modelo": "Etios",
+  "anio": 2022,
+  "motor": "MOT-1111",
+  "chasis": "CHA-2222",
+  "aseguradora": "Federación Patronal",
+  "poliza": "POL-111-222",
+  "vencimiento": "2026-11-30"
+}
+
+###
+
+### ========================================================
+### 3. ACTIVAR MODO CHOQUE (JUAN GENERA SU PIN)
+### Reemplaza el "usuarioId" con el que te devolvió el Paso 1
+### ========================================================
+POST http://localhost:3000/api/choque/activar
+Content-Type: application/json
+
+{
+  "usuarioId": "usr_262f6b95"
+}
+
+###
+
+### ========================================================
+### 4. INTERCAMBIAR DATOS (MARÍA INGRESA EL PIN DE JUAN)
+### Reemplaza "usuarioId" por el de María (Paso 2)
+### Reemplaza "pinIngresado" por el que te dio el Paso 3
+### ========================================================
+POST http://localhost:3000/api/choque/intercambiar
+Content-Type: application/json
+
+{
+  "usuarioId": "usr_280704d5",
+  "pinIngresado": "8296"
+}
+
+###
+
+### ========================================================
+### 5. VER HISTORIAL DE MARÍA
+### Reemplaza el ID del final de la URL por el de María
+### ========================================================
+GET http://localhost:3000/api/choque/historial/usr_280704d5

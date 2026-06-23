@@ -1,0 +1,10 @@
+# Servidor (Backend)
+node_modules/
+choques.db
+choques.db-journal
+.env
+
+# Aplicación Móvil (Frontend)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
